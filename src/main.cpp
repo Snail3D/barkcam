@@ -398,6 +398,8 @@ static void connectSTA();   // forward decl — startAP calls it below its defin
 static void startAP() {
     WiFi.mode(WIFI_AP_STA);   // keep home WiFi while serving config — test photos work
     WiFi.softAP(AP_SSID);   // open AP — local config window
+    apMode = true;          // lost in the mDNS commit — without it the web UI never runs
+    apStartMs = millis();   // ...and the window is measured from this open, not boot
     static bool mdnsUp = false;
     if (!mdnsUp) { MDNS.begin("barkcam"); mdnsUp = true; }   // http://barkcam.local
     apEmptySince = 0;

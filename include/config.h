@@ -61,7 +61,7 @@
 #define TZ_OFFSET_HOURS      0
 
 // Bump for each release — shown in the serial banner ("fw %d").
-#define FIRMWARE_VERSION   4
+#define FIRMWARE_VERSION   5
 
 // --- config access point (open AP, first N minutes after power-on) ---
 #define AP_SSID          "barkcam-config"
