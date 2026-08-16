@@ -17,7 +17,6 @@
 //   t  force a test photo + Telegram send (bypasses detector and cooldown)
 //   s  print status (mode, noise floor, threshold, last frame level, cooldown)
 //   c  clear the cooldown so the next bark sends immediately
-//   o  force an OTA check now
 //   1  raise detection threshold by 2 dB (fewer triggers)
 //   2  lower detection threshold by 2 dB (more triggers)
 
@@ -31,7 +30,6 @@
 #include <esp_camera.h>
 #include <driver/i2s.h>
 #include <time.h>
-#include <Update.h>
 #include <esp_heap_caps.h>
 
 #include "config.h"
@@ -413,6 +411,7 @@ static void startAP() {
 static void exitAP() {
     if (!apMode) return;
     apMode = false;
+    server.close();   // free the port-80 listener (begin() re-creates it on reopen)
     WiFi.softAPdisconnect(true);
     WiFi.mode(WIFI_STA);
     WiFi.setSleep(true);   // let the radio modem-sleep in normal operation (power/heat)
@@ -570,62 +569,6 @@ static void watchdogTask(void *) {
     }
 }
 
-// ============================ OTA updates
-// The board polls http://<OTA_HOST>:<OTA_PORT>/version every 10 minutes.
-// If the server (ota/server.py on the Mac) advertises a newer version, the
-// board downloads firmware.bin and reboots into it. No buttons required.
-
-static void doOTA(const String &url) {
-    WiFiClient client;
-    HTTPClient http;
-    if (!http.begin(client, url)) { Serial.println("ota: begin failed"); return; }
-    int code = http.GET();
-    if (code != HTTP_CODE_OK) { Serial.printf("ota: GET failed (%d)\n", code); http.end(); return; }
-    int len = http.getSize();
-    if (len < 100000) { Serial.printf("ota: suspicious size %d — aborting\n", len); http.end(); return; }
-    WiFiClient *stream = http.getStreamPtr();
-    if (!Update.begin(len)) { Update.printError(Serial); http.end(); return; }
-    uint8_t buf[2048];
-    size_t written = 0;
-    while (http.connected() && written < (size_t)len) {
-        size_t av = stream->available();
-        if (av) {
-            int rd = stream->readBytes(buf, min(av, sizeof(buf)));
-            if (rd > 0) { Update.write(buf, rd); written += rd; }
-        } else delay(4);
-    }
-    http.end();
-    if (written == (size_t)len && Update.end(true)) {
-        Serial.println("ota: update applied — rebooting into new firmware");
-    } else {
-        Serial.printf("ota: FAILED (wrote %u of %d) — keeping current firmware\n", (unsigned)written, len);
-    }
-}
-
-static void checkOTA(bool force = false) {
-    static uint32_t lastCheck = 0;
-    if (!force && (millis() - lastCheck < OTA_CHECK_INTERVAL_MS)) return;
-    lastCheck = millis();
-
-    WiFiClient client;
-    HTTPClient http;
-    String url = String("http://") + OTA_HOST + ":" + String(OTA_PORT) + "/version";
-    if (!http.begin(client, url)) return;   // server not running — silently skip
-    int code = http.GET();
-    if (code != HTTP_CODE_OK) { http.end(); return; }
-    String remote = http.getString();
-    remote.trim();
-    http.end();
-
-    int ver = remote.toInt();
-    if (ver > FIRMWARE_VERSION) {
-        Serial.printf("ota: update available (v%d -> v%d)\n", FIRMWARE_VERSION, ver);
-        doOTA(String("http://") + OTA_HOST + ":" + String(OTA_PORT) + "/firmware.bin");
-    } else if (force) {
-        Serial.printf("ota: up to date (v%d)\n", FIRMWARE_VERSION);
-    }
-}
-
 // ============================ setup / loop
 
 void setup() {
@@ -657,7 +600,7 @@ void setup() {
 
     xTaskCreatePinnedToCore(watchdogTask, "wd", 2048, nullptr, 1, nullptr, 1);
 
-    Serial.println("commands: t=test photo  s=status  c=clear cooldown  o=ota check  i=wifi info  w=scan  a=reopen config AP  1/2=tune");
+    Serial.println("commands: t=test photo  s=status  c=clear cooldown  i=wifi info  w=scan  a=reopen config AP  1/2=tune");
 }
 
 void loop() {
@@ -714,7 +657,6 @@ void loop() {
             case 't': handleBarkEvent("manual test", true); break;
             case 's': printStatus(); break;
             case 'c': lastSendMs = 0; Serial.println("cooldown cleared"); break;
-            case 'o': checkOTA(true); break;
             case 'w': wifiScan(); break;
             case 'i': Serial.printf("wifi: ssid=%s ip=%s rssi=%d\n", WiFi.SSID().c_str(),
                       WiFi.localIP().toString().c_str(), WiFi.RSSI()); break;
@@ -755,9 +697,6 @@ void loop() {
             startAP();
         }
     }
-
-    // --- OTA poll (every 10 min; silent when the server is off) ---
-    if (!apMode) checkOTA();
 
     // --- LED: AP = 2 Hz blink, idle listening = 1 Hz, working = solid ---
     if (!working) {

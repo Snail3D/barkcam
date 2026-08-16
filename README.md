@@ -4,8 +4,8 @@ Dog bark monitor on the **Seeed XIAO ESP32S3 Sense**. When it hears your dog
 bark, it takes a photo and sends it to you on Telegram.
 
 **v0.2:** hear bark → 1 photo → Telegram, max one photo per 2 minutes no
-matter how long the dog barks. Plus a phone-based config UI, OTA updates, and
-a watchdog that reboots on a stalled loop.
+matter how long the dog barks. Plus a phone-based config UI and a watchdog
+that reboots on a stalled loop.
 
 ## Get it
 
@@ -60,6 +60,7 @@ You can reopen the config UI any time with serial command `a`.
 
 ## Build & flash
 
+```bash
 cd barkcam                                             # the cloned repo
 cp include/credentials.h.example include/credentials.h   # any values — web UI overrides them
 pio run -t upload --upload-port /dev/cu.usbmodemXXXX   # your board's port
@@ -82,7 +83,6 @@ Serial commands (type them in the serial console):
 | `t` | force a test photo + Telegram send (bypasses detector & cooldown) |
 | `s` | print status: noise floor, threshold, last frame level, cooldown |
 | `c` | clear the cooldown so the next bark sends immediately |
-| `o` | force an OTA check now (downloads + applies if the server has a newer version) |
 | `1` / `2` | raise / lower detection threshold by 2 dB (live, no reflash) |
 | `w` | scan WiFi networks, list top 12 by signal (find your SSID) |
 | `i` | print current WiFi: SSID, IP, RSSI |
@@ -106,23 +106,11 @@ All knobs are in `include/config.h`:
 | `BURST_MIN/MAX_FRAMES` | 3 / 24 | ~50–380 ms bark duration window |
 | `TZ_OFFSET_HOURS` | 0 | UTC offset for photo captions (e.g. -7 for Pacific) |
 
-## OTA updates (no reflash needed)
+## Updating
 
-The board polls `http://<OTA_HOST>:8652/version` every 10 minutes. To push
-new firmware from the Mac:
-
-```bash
-cd barkcam
-pio run                                            # build
-cp .pio/build/seeed_xiao_esp32s3/firmware.bin ota/firmware.bin
-echo 3 > ota/version                               # bump past the board's version
-python3 ota/server.py &                            # serve (can stay running)
-```
-
-The board sees the newer version, downloads `firmware.bin`, reboots into it —
-`ota: update applied` on serial. Bump `FIRMWARE_VERSION` in `include/config.h`
-and `ota/version` together for each release. If the server isn't running, the
-board silently skips the check — OTA is opt-in per session.
+The browser flasher (see [Get it](#get-it)) is the update path — reflash from
+any phone, no install needed. Or over USB: `pio run -t upload` (or the
+esptool one-liner above). The serial banner prints the firmware build number.
 
 ## Roadmap (v2)
 

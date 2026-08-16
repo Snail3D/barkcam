@@ -51,16 +51,17 @@
 // --- behavior ---
 #define COOLDOWN_MS          120000  // max one photo per 2 min (fixed — not user-tunable)
 #define WIFI_TIMEOUT_MS      20000
-#define WATCHDOG_TIMEOUT_MS  60000   // loop must tick within 1 min (cold TLS handshake can take ~20 s)
+// Must outlast the worst un-ticked path in loop(): camera capture (~3 s) +
+// a Telegram send where every HTTP stage hits its 15 s timeout (~45 s).
+// A truly stuck loop still reboots within 90 s.
+#define WATCHDOG_TIMEOUT_MS  90000
 #define PERIODIC_REBOOT_MS   21600000ULL // reboot every 6 h — keeps heap fresh for unattended duty
 
 // Your UTC offset in hours (e.g. -7 for Pacific). Used for photo captions.
 #define TZ_OFFSET_HOURS      0
 
-// --- OTA updates ---
-#define FIRMWARE_VERSION   3        // bump for each release you want to push via ota/server.py
-#define OTA_CHECK_INTERVAL_MS 600000   // poll the update server every 10 minutes
-#define OTA_PORT           8652     // port of ota/server.py on the Mac
+// Bump for each release — shown in the serial banner ("fw %d").
+#define FIRMWARE_VERSION   4
 
 // --- config access point (open AP, first N minutes after power-on) ---
 #define AP_SSID          "barkcam-config"
