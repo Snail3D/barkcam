@@ -26,7 +26,7 @@ processing on the board.</p>
 <div class="card">
   <p>Plug the board into USB, then click. Works in <b>Chrome and Edge</b>
   (desktop or Android) — the board resets itself, no button pressing.</p>
-  <button id="flash" onclick="doFlash()">⚡ Flash barkcam v0.2</button>
+  <button id="flash">⚡ Flash barkcam v0.2</button>
   <div id="bar"><div id="fill"></div></div>
   <div id="status"></div>
 </div>
@@ -64,6 +64,9 @@ const status = (msg, ok) => { $('status').textContent = msg; $('status').style.c
 if (!navigator.serial) {
   $('flash').disabled = true;
   status('⚠ This browser has no WebSerial — use Chrome or Edge, or download the firmware below.');
+} else {
+  // doFlash lives in module scope — an inline onclick attribute can't see it.
+  $('flash').addEventListener('click', doFlash);
 }
 
 async function doFlash() {
@@ -72,15 +75,15 @@ async function doFlash() {
     btn.disabled = true;
     status('Downloading firmware…');
     const data = new Uint8Array(await (await fetch('firmware/barkcam-v0.2.bin')).arrayBuffer());
-    status(`Firmware ready (${(data.length/1048576).toFixed(2)} MB) — pick the board's USB port…`);
+    status(`Firmware ready (${(data.length/1048576).toFixed(2)} MB) — now pick the board's USB port in the popup…`);
     const port = await navigator.serial.requestPort();
     const transport = new Transport(port, true);
     const esp = new ESPLoader({
       transport, baudrate: 115200,
       terminal: { clean(){}, writeLine(s){ status(s); }, write(){} }
     });
-    status('Connecting (board resets itself)…');
-    await esp.main("usb_jtag_serial_reset");   // XIAO ESP32S3: native USB, no buttons
+    status('Connecting — the board resets itself, no button pressing…');
+    await esp.main("usb_reset");   // XIAO ESP32S3: native USB, auto-enters bootloader
     status('Connected — flashing…');
     $('bar').style.display = 'block';
     await esp.writeFlash({
