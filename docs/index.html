@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bark Cam — flash it in your browser</title>
+<style>
+body{background:#111;color:#eee;font-family:system-ui,sans-serif;max-width:640px;margin:0 auto;padding:24px 16px;line-height:1.5}
+h1{font-size:24px;margin:8px 0} h2{font-size:17px;margin:28px 0 8px;color:#8f8}
+a{color:#4cf} .muted{color:#999;font-size:13px}
+button{background:#2d7;color:#111;border:0;border-radius:8px;padding:14px 22px;font-size:16px;font-weight:700;cursor:pointer}
+button:disabled{opacity:.4;cursor:default} button.warn{background:#a55}
+#status{min-height:22px;font-size:14px;margin-top:10px}
+#bar{height:8px;background:#333;border-radius:4px;overflow:hidden;margin-top:10px;display:none}
+#fill{height:100%;width:0;background:#2d7;transition:width .2s}
+img{max-width:100%;border-radius:8px;border:1px solid #333}
+code{background:#222;padding:2px 6px;border-radius:4px;font-size:13px}
+ol li{margin:8px 0} .card{background:#1a1a1a;border:1px solid #333;border-radius:10px;padding:16px;margin:12px 0}
+</style></head><body>
+
+<h1>&#128021; Bark Cam</h1>
+<p>Your dog barks, you get a photo on Telegram. Runs on the
+<b>Seeed XIAO ESP32S3 Sense</b> (~$20): hears a bark, snaps a photo with the
+onboard camera, sends it to your phone. No cloud, no AI — just signal
+processing on the board.</p>
+
+<h2>1. Flash it (in your browser, no install)</h2>
+<div class="card">
+  <p>Plug the board into USB, then click. Works in <b>Chrome and Edge</b>
+  (desktop or Android) — the board resets itself, no button pressing.</p>
+  <button id="flash" onclick="doFlash()">⚡ Flash barkcam v0.2</button>
+  <div id="bar"><div id="fill"></div></div>
+  <div id="status"></div>
+</div>
+
+<h2>2. Set it up (one time, ~2 minutes)</h2>
+<ol>
+  <li>Power the board (USB). For 10 minutes it broadcasts an open WiFi network
+      <b>barkcam-config</b> — connect your phone to it.</li>
+  <li>Open <code>barkcam.local</code> in your phone's browser (or
+      <code>192.168.4.1</code> if that doesn't resolve).</li>
+  <li>Enter your home WiFi, a Telegram bot token (from @BotFather) and your
+      user ID (from @userinfobot). Hit <b>Save settings</b>. Done — the board
+      closes its access point when your phone disconnects.</li>
+</ol>
+
+<h2>Other ways to get it</h2>
+<ul class="muted" style="font-size:14px">
+  <li><a href="firmware/barkcam-v0.2.bin">Download the firmware</a> and flash
+      with esptool: <code>esptool.py --chip esp32s3 write_flash 0x0 barkcam-v0.2.bin</code></li>
+  <li><a href="https://github.com/Snail3D/barkcam">Build from source</a>
+      (PlatformIO) — the repo has full docs.</li>
+  <li>Safari/Firefox users: WebSerial isn't supported there — use the download
+      above, or open this page in Chrome/Edge.</li>
+</ul>
+
+<img src="ui-config.png" alt="The Bark Cam config UI on a phone">
+<p class="muted">The board's own setup page — where you enter WiFi and Telegram.</p>
+
+<script type="module">
+import { ESPLoader, Transport } from './esptool-bundle.js';
+
+const $ = id => document.getElementById(id);
+const status = (msg, ok) => { $('status').textContent = msg; $('status').style.color = ok ? '#8f8' : (msg.startsWith('⚠') || msg.startsWith('✗') ? '#f88' : '#eee'); };
+
+if (!navigator.serial) {
+  $('flash').disabled = true;
+  status('⚠ This browser has no WebSerial — use Chrome or Edge, or download the firmware below.');
+}
+
+async function doFlash() {
+  const btn = $('flash');
+  try {
+    btn.disabled = true;
+    status('Downloading firmware…');
+    const data = new Uint8Array(await (await fetch('firmware/barkcam-v0.2.bin')).arrayBuffer());
+    status(`Firmware ready (${(data.length/1048576).toFixed(2)} MB) — pick the board's USB port…`);
+    const port = await navigator.serial.requestPort();
+    const transport = new Transport(port, true);
+    const esp = new ESPLoader({
+      transport, baudrate: 115200,
+      terminal: { clean(){}, writeLine(s){ status(s); }, write(){} }
+    });
+    status('Connecting (board resets itself)…');
+    await esp.main("usb_jtag_serial_reset");   // XIAO ESP32S3: native USB, no buttons
+    status('Connected — flashing…');
+    $('bar').style.display = 'block';
+    await esp.writeFlash({
+      fileArray: [{ data, address: 0x0 }],    // bootloader + partitions + app
+      flashMode: "qio", flashFreq: "80m", flashSize: "8MB",
+      eraseAll: false,                         // keep NVS (your saved config)
+      compress: true,
+      reportProgress: (_, w, t) => { $('fill').style.width = (100*w/t).toFixed(1) + '%'; status(`Flashing… ${Math.round(100*w/t)}%`); }
+    });
+    await esp.after("hard_reset");
+    await transport.disconnect();
+    $('fill').style.width = '100%';
+    status('✓ Flashed! The board is rebooting. Now do step 2: connect to the barkcam-config WiFi.', true);
+    btn.disabled = false;
+  } catch (e) {
+    console.error(e);
+    btn.disabled = false;
+    status('✗ ' + (e.message || e) + ' — if the board is running, hold its BOOT button while plugging in USB (bootloader mode), then try again.');
+  }
+}
+</script>
+</body></html>

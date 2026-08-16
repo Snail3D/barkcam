@@ -7,6 +7,12 @@ bark, it takes a photo and sends it to you on Telegram.
 matter how long the dog barks. Plus a phone-based config UI, OTA updates, and
 a watchdog that reboots on a stalled loop.
 
+## Get it
+
+- **Easiest:** [flash it in your browser](https://snail3d.github.io/barkcam/) — no install needed (Chrome/Edge)
+- **Command line:** [download the firmware](https://snail3d.github.io/barkcam/firmware/barkcam-v0.2.bin) and run `esptool.py --chip esp32s3 write_flash 0x0 barkcam-v0.2.bin`
+- **Build from source:** see [Build & flash](#build--flash) below (PlatformIO)
+
 ## What it looks like
 
 The config UI, served from the board's access point — what your phone sees:
@@ -42,7 +48,7 @@ it can be swapped without touching the rest.
 
 1. Flash and power on the board. For 10 minutes it broadcasts an open
    `barkcam-config` access point — connect your phone to it and open
-   http://192.168.4.1.
+   `barkcam.local` in the browser (or 192.168.4.1 if that doesn't resolve).
 2. Set your WiFi, bot token (from @BotFather), user ID, sensitivity, rotation
    and exposure. Hit **Save settings**. The AP closes itself when your phone
    disconnects (or tap "Disconnect to save and exit"). Everything persists in

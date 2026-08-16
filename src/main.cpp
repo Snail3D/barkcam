@@ -26,6 +26,7 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <WebServer.h>
+#include <ESPmDNS.h>
 #include <Preferences.h>
 #include <esp_camera.h>
 #include <driver/i2s.h>
@@ -399,13 +400,13 @@ static void connectSTA();   // forward decl — startAP calls it below its defin
 static void startAP() {
     WiFi.mode(WIFI_AP_STA);   // keep home WiFi while serving config — test photos work
     WiFi.softAP(AP_SSID);   // open AP — local config window
-    apMode = true;
-    apStartMs = millis();
+    static bool mdnsUp = false;
+    if (!mdnsUp) { MDNS.begin("barkcam"); mdnsUp = true; }   // http://barkcam.local
     apEmptySince = 0;
     apClientEver = false;   // fresh window: stay open until a client comes and goes
     server.begin();
     connectSTA();   // home WiFi in parallel (board stays online while configuring)
-    Serial.printf("config AP '%s' up for %lu min — phone: connect, open http://192.168.4.1\n",
+    Serial.printf("config AP '%s' up for %lu min — phone: connect, open http://barkcam.local (or 192.168.4.1)\n",
                   AP_SSID, (unsigned long)(cfg.apWindowMs / 60000));
 }
 

@@ -1,3 +1,4 @@
 .pio/
 include/credentials.h
 *.bin
+!docs/firmware/*.bin
