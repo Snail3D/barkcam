@@ -3,14 +3,14 @@
 Dog bark monitor on the **Seeed XIAO ESP32S3 Sense**. When it hears your dog
 bark, it takes a photo and sends it to you on Telegram.
 
-**v0.2:** hear bark → 1 photo → Telegram, max one photo per 2 minutes no
+**v1:** hear bark → 1 photo → Telegram, max one photo per 2 minutes no
 matter how long the dog barks. Plus a phone-based config UI and a watchdog
 that reboots on a stalled loop.
 
 ## Get it
 
 - **Easiest:** [flash it in your browser](https://snail3d.github.io/barkcam/) — no install needed (Chrome/Edge)
-- **Command line:** [download the firmware](https://snail3d.github.io/barkcam/firmware/barkcam-v0.2.bin) and run `esptool.py --chip esp32s3 write_flash 0x0 barkcam-v0.2.bin`
+- **Command line:** [download the firmware](https://snail3d.github.io/barkcam/firmware/barkcam-v1.bin) and run `esptool.py --chip esp32s3 write_flash 0x0 barkcam-v1.bin`
 - **Build from source:** see [Build & flash](#build--flash) below (PlatformIO)
 
 ## What it looks like
@@ -40,7 +40,7 @@ it can be swapped without touching the rest.
 
 - XIAO ESP32S3 **Sense** (base board + Sense expansion: OV2640 camera, PDM
   mic, microSD). A plain XIAO ESP32S3 has no camera/mic and won't work.
-- Power: USB-C (data cable). v0.2 runs always-on (~100–110 mA with WiFi up,
+- Power: USB-C (data cable). v1 runs always-on (~100–110 mA with WiFi up,
   ~350 mA peak during a capture) — continuous listening is the point; deep
   sleep can't listen. Battery sizing is a v2 topic.
 

@@ -1,4 +1,4 @@
-// BARKCAM v0.2 — dog bark monitor on the Seeed XIAO ESP32S3 Sense
+// BARKCAM v1 — dog bark monitor on the Seeed XIAO ESP32S3 Sense
 //
 // Pipeline:
 //   PDM mic (GPIO41/42) -> 16 kHz PCM -> energy burst detector
@@ -596,7 +596,7 @@ void setup() {
     while (millis() - t0 < 3000) { server.handleClient(); delay(50); }
 
     Serial.println();
-    Serial.printf("=== BARKCAM v0.2 (fw %d) ===\n", FIRMWARE_VERSION);
+    Serial.printf("=== BARKCAM v1 (fw %d) ===\n", FIRMWARE_VERSION);
     if (micReady) Serial.println("mic ready (PDM 16 kHz)");
     else          Serial.println("!! MIC INIT FAILED — is the Sense expansion attached? !!");
 

@@ -26,7 +26,7 @@ processing on the board.</p>
 <div class="card">
   <p>Plug the board into USB, then click. Works in <b>Chrome and Edge</b>
   (desktop or Android) — the board resets itself, no button pressing.</p>
-  <button id="flash">⚡ Flash barkcam v0.2</button>
+  <button id="flash">⚡ Flash barkcam v1</button>
   <div id="bar"><div id="fill"></div></div>
   <div id="status"></div>
 </div>
@@ -44,8 +44,8 @@ processing on the board.</p>
 
 <h2>Other ways to get it</h2>
 <ul class="muted" style="font-size:14px">
-  <li><a href="firmware/barkcam-v0.2.bin">Download the firmware</a> and flash
-      with esptool: <code>esptool.py --chip esp32s3 write_flash 0x0 barkcam-v0.2.bin</code></li>
+  <li><a href="firmware/barkcam-v1.bin">Download the firmware</a> and flash
+      with esptool: <code>esptool.py --chip esp32s3 write_flash 0x0 barkcam-v1.bin</code></li>
   <li><a href="https://github.com/Snail3D/barkcam">Build from source</a>
       (PlatformIO) — the repo has full docs.</li>
   <li>Safari/Firefox users: WebSerial isn't supported there — use the download
@@ -74,7 +74,7 @@ async function doFlash() {
   try {
     btn.disabled = true;
     status('Downloading firmware…');
-    const data = new Uint8Array(await (await fetch('firmware/barkcam-v0.2.bin')).arrayBuffer());
+    const data = new Uint8Array(await (await fetch('firmware/barkcam-v1.bin')).arrayBuffer());
     status(`Firmware ready (${(data.length/1048576).toFixed(2)} MB) — now pick the board's USB port in the popup…`);
     const port = await navigator.serial.requestPort();
     const transport = new Transport(port, true);
