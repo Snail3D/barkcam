@@ -61,13 +61,13 @@
 #define TZ_OFFSET_HOURS      0
 
 // Bump for each release — shown in the serial banner ("fw %d").
-#define FIRMWARE_VERSION   6
+#define FIRMWARE_VERSION   7
 
 // --- config access point (open AP, first N minutes after power-on) ---
 #define AP_SSID          "barkcam-config"
 #define AP_WINDOW_MS     600000  // 10 min window, then drop the AP (board stays on home WiFi)
 
-// --- camera orientation setting (0=none 1=90CW 2=90CCW 3=180) ---
+// --- camera orientation setting (0=none 3=180; 90° not supported by this camera) ---
 #define CAM_ROTATE_DEFAULT 3     // this install is mounted upside-down — needs 180°
 // --- camera exposure setting (0=dim 1=medium 2=bright) ---
 #define CAM_EXPOSURE_DEFAULT 1     // medium = the look you approved; dim for window light, bright outdoors

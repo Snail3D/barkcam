@@ -45,7 +45,7 @@ struct AppConfig {
     String botToken, chatId;
     float marginDb;       // sensitivity: bark threshold = noise floor + margin
     uint32_t cooldownMs;  // max one photo per this many ms (fixed at COOLDOWN_MS)
-    int rotate;           // photo rotation: 0=none 1=90CW 2=90CCW 3=180
+    int rotate;           // photo orientation: 0=none 3=180 (90° not supported by this camera)
     int exposure;         // photo brightness: 0=dim 1=medium 2=bright
     uint32_t apWindowMs;  // config-AP window at boot (default 10 min)
 };
@@ -65,7 +65,7 @@ static void loadConfig() {
     if (prefs.isKey("token"))    { String v = prefs.getString("token", "");  if (v.length()) cfg.botToken = v; }
     if (prefs.isKey("chatId"))   { String v = prefs.getString("chatId", ""); if (v.length()) cfg.chatId = v; }
     if (prefs.isKey("margin"))   cfg.marginDb = prefs.getFloat("margin", THRESHOLD_MARGIN_DB);
-    if (prefs.isKey("rotate"))   cfg.rotate = prefs.getInt("rotate", CAM_ROTATE_DEFAULT);
+    if (prefs.isKey("rotate"))   { int r = prefs.getInt("rotate", CAM_ROTATE_DEFAULT); cfg.rotate = (r == 0 || r == 3) ? r : CAM_ROTATE_DEFAULT; }
     if (prefs.isKey("exposure")) cfg.exposure = prefs.getInt("exposure", CAM_EXPOSURE_DEFAULT);
     if (prefs.isKey("apWindow")) cfg.apWindowMs = prefs.getInt("apWindow", AP_WINDOW_MS);
 }
@@ -463,7 +463,7 @@ static void handlePostConfig() {
     if (server.hasArg("token"))      { cfg.botToken = server.arg("token"); changed = true; }
     if (server.hasArg("chatId"))     { cfg.chatId = server.arg("chatId"); changed = true; }
     if (server.hasArg("margin"))     { cfg.marginDb = server.arg("margin").toFloat(); detector.setMargin(cfg.marginDb); changed = true; }
-    if (server.hasArg("rotate"))     { int v = server.arg("rotate").toInt(); if (v >= 0 && v <= 3) { cfg.rotate = v; changed = true; } }
+    if (server.hasArg("rotate"))     { int v = server.arg("rotate").toInt(); if (v == 0 || v == 3) { cfg.rotate = v; changed = true; } }
     if (server.hasArg("exposure"))   { int v = server.arg("exposure").toInt(); if (v >= 0 && v <= 2) { cfg.exposure = v; changed = true; } }
     if (server.hasArg("apWindowMs")) { uint32_t v = server.arg("apWindowMs").toInt(); if (v >= 5000) { cfg.apWindowMs = v; changed = true; } }
 

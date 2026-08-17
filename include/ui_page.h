@@ -29,8 +29,7 @@ a{color:#4cf}
 
 <h3>Camera settings</h3>
 <div class="row"><label>Rotation</label><select id="rot">
-<option value="0">none</option><option value="1">90&deg; CW</option>
-<option value="2">90&deg; CCW</option><option value="3" selected>180&deg;</option></select></div>
+<option value="0">none</option><option value="3" selected>180&deg;</option></select></div>
 <div class="row"><label>Exposure</label><select id="expo">
 <option value="0">dim</option><option value="1" selected>medium</option>
 <option value="2">bright</option></select></div>

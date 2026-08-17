@@ -33,7 +33,7 @@ No cloud, no AI model — DSP on the board: high-pass filter, adaptive noise flo
 
 - WebSerial + esptool-bundle.js (local ES module) is the flash mechanism; it must keep working exactly as-is.
 - Firmware bin: single merged file (bootloader@0x0 + partitions@0x8000 + app@0x10000), qio/80m/8MB.
-- Product version v1 (FIRMWARE_VERSION 6); board is XIAO ESP32S3 Sense only.
+- Product version v1 (FIRMWARE_VERSION 7); board is XIAO ESP32S3 Sense only.
 - Fonts load from the same Google Fonts CDN as snail3d.com (Space Grotesk, JetBrains Mono, Instrument Serif).
 
 ## Brand Commitments
