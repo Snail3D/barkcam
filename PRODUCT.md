@@ -15,7 +15,7 @@ Dog owners who bought a Seeed XIAO ESP32S3 Sense (~$20) and want to know when th
 
 ## Product Purpose
 
-Get bark alerts working on a $20 credit-card-sized board: when the dog barks, the board snaps a photo and sends it to the owner on Telegram. Success = visitor flashes firmware in their browser (no install, no soldering) and completes the ~2-minute setup.
+Get bark alerts working on a $20 half-dollar-size camera board: when the dog barks, the board snaps a photo and sends it to the owner on Telegram. Success = visitor flashes firmware in their browser (no install, no soldering) and completes the ~2-minute setup.
 
 ## Positioning
 
@@ -40,7 +40,7 @@ No cloud, no AI model — DSP on the board: high-pass filter, adaptive noise flo
 
 - Name: "Bark Cam" with 🐕.
 - Visual world is pinned by the user to snail3d.com's design language: dark #05050a ground, neon accents (cyan/magenta/gold/purple), Space Grotesk + JetBrains Mono + Instrument Serif, particle canvas background, film grain. Bark Cam's accent on the portfolio is green (#3dffa0).
-- Portfolio copy (user-approved, reuse verbatim where it fits): "A credit-card-sized camera that listens for your dog. When it hears a bark, it snaps a photo and texts it to you on Telegram — no cloud, no AI model, just signal processing on the board." plus its three feature bullets.
+- Portfolio copy (user-approved, reuse verbatim where it fits): "A half-dollar-size camera board that listens for your dog. When it hears a bark, it snaps a photo and texts it to you on Telegram — no cloud, no AI model, just signal processing on the board." plus its three feature bullets.
 
 ## Evidence on Hand
 
