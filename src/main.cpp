@@ -147,15 +147,23 @@ static bool initMic() {
 // ============================ camera (lazy — only on first bark)
 
 // Apply the configured photo orientation + exposure to the sensor hardware.
-// 180° = vflip + hmirror (a true rotation, done in the sensor — no metadata).
-// 90° rotations can't be done in hardware; those get an EXIF tag at capture.
+// This install is mounted upside-down, so the "180°" setting corrects it with a
+// vertical flip only. We never mirror (hmirror stays off) — a full 180° flip would
+// also mirror the image, which reads as a mirror-image on this camera.
 static void applyCameraTuning() {
     sensor_t *s = esp_camera_sensor_get();
     if (!s) return;
-    int flip = (cfg.rotate == 3) ? 1 : 0;   // 180° = both flips
+    int flip = (cfg.rotate == 3) ? 1 : 0;   // 180° = vertical flip (upside-down fix)
     s->set_vflip(s, flip);
-    s->set_hmirror(s, flip);
-    s->set_brightness(s, cfg.exposure);     // 0=dim 1=medium 2=bright
+    s->set_hmirror(s, 0);                   // no horizontal mirror on this camera
+    // Exposure: spread dim/medium/bright over the sensor's real -2..+2 range so
+    // "dim" is genuinely dark (it was 0/1/2 = neutral..bright, i.e. still bright).
+    // Driven through both brightness and AE level for a strong, reliable effect.
+    static const int8_t EXPO_LV[] = { -2, 0, 2 };
+    int e = cfg.exposure; if (e < 0) e = 0; else if (e > 2) e = 2;
+    int lv = EXPO_LV[e];
+    s->set_brightness(s, lv);
+    s->set_ae_level(s, lv);
 }
 
 static bool initCamera() {
