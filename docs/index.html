@@ -1,71 +1,362 @@
 <!DOCTYPE html>
-<html><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#05050a">
+<meta name="description" content="Bark Cam — a credit-card-sized camera that listens for your dog. Flash it in your browser, no install needed.">
 <title>Bark Cam — flash it in your browser</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%233dffa0'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <style>
-body{background:#111;color:#eee;font-family:system-ui,sans-serif;max-width:640px;margin:0 auto;padding:24px 16px;line-height:1.5}
-h1{font-size:24px;margin:8px 0} h2{font-size:17px;margin:28px 0 8px;color:#8f8}
-a{color:#4cf} .muted{color:#999;font-size:13px}
-button{background:#2d7;color:#111;border:0;border-radius:8px;padding:14px 22px;font-size:16px;font-weight:700;cursor:pointer}
-button:disabled{opacity:.4;cursor:default} button.warn{background:#a55}
-#status{min-height:22px;font-size:14px;margin-top:10px}
-#bar{height:8px;background:#333;border-radius:4px;overflow:hidden;margin-top:10px;display:none}
-#fill{height:100%;width:0;background:#2d7;transition:width .2s}
-img{max-width:100%;border-radius:8px;border:1px solid #333}
-code{background:#222;padding:2px 6px;border-radius:4px;font-size:13px}
-ol li{margin:8px 0} .card{background:#1a1a1a;border:1px solid #333;border-radius:10px;padding:16px;margin:12px 0}
-</style></head><body>
+/* ═══════════════════════════════════════════════════════════
+   RESET & TOKENS — inherited from snail3d.com
+   ═══════════════════════════════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#05050a;--bg2:#0a0a16;
+  --fg:#f0eff4;--muted:rgba(240,239,244,.55);
+  --line:rgba(255,255,255,.08);
+  --cyan:#00f0ff;--magenta:#ff2d92;--gold:#ffb83d;--purple:#8d79ff;--green:#3dffa0;
+  --sans:'Space Grotesk',system-ui,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+  --serif:'Instrument Serif',Georgia,serif;
+  --max:1280px;
+}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{
+  background:var(--bg);color:var(--fg);
+  font-family:var(--sans);font-size:16px;line-height:1.6;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden;
+}
+::selection{background:var(--green);color:var(--bg)}
+a{color:inherit;text-decoration:none}
+img{max-width:100%;display:block}
 
-<h1>&#128021; Bark Cam</h1>
-<p>Your dog barks, you get a photo on Telegram. Runs on the
-<b>Seeed XIAO ESP32S3 Sense</b> (~$20): hears a bark, snaps a photo with the
-onboard camera, sends it to your phone. No cloud, no AI — just signal
-processing on the board.</p>
+/* ═══════════════════════════════════════════════════════════
+   ATMOSPHERE — particle field + film grain (snail3d.com)
+   ═══════════════════════════════════════════════════════════ */
+#bgCanvas{position:fixed;inset:0;z-index:0;pointer-events:none}
+.grain{position:fixed;inset:0;z-index:9998;pointer-events:none;opacity:.035;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E")}
 
-<h2>1. Flash it (in your browser, no install)</h2>
-<div class="card">
-  <p>Plug the board into USB, then click. Works in <b>Chrome and Edge</b>
-  (desktop or Android) — the board resets itself, no button pressing.</p>
-  <button id="flash">⚡ Flash barkcam v1</button>
-  <div id="bar"><div id="fill"></div></div>
-  <div id="status"></div>
-</div>
+/* ═══════════════════════════════════════════════════════════
+   NAV
+   ═══════════════════════════════════════════════════════════ */
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:clamp(12px,2vw,20px) clamp(16px,4vw,48px);
+  transition:all .4s ease;
+}
+nav.scrolled{background:rgba(5,5,10,.7);backdrop-filter:blur(20px);border-bottom:1px solid var(--line)}
+.nav-logo{display:flex;align-items:center;gap:8px;font-weight:700;font-size:18px;letter-spacing:.05em}
+.nav-logo .dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+.nav-links{display:flex;gap:clamp(12px,2vw,28px);align-items:center}
+.nav-links a{font-size:14px;color:var(--muted);transition:color .3s;position:relative}
+.nav-links a:hover{color:var(--fg)}
+.nav-links a::after{content:'';position:absolute;bottom:-4px;left:0;width:0;height:2px;background:var(--green);transition:width .3s}
+.nav-links a:hover::after{width:100%}
+.nav-cta{
+  font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;
+  padding:8px 18px;border:1px solid var(--line);border-radius:999px;transition:all .3s;
+}
+.nav-cta:hover{border-color:var(--green);color:var(--green);box-shadow:0 0 20px rgba(61,255,160,.15)}
 
-<h2>2. Set it up (one time, ~2 minutes)</h2>
-<ol>
-  <li>Power the board (USB). For 10 minutes it broadcasts an open WiFi network
-      <b>barkcam-config</b> — connect your phone to it.</li>
-  <li>Open <code>barkcam.local</code> in your phone's browser (or
-      <code>192.168.4.1</code> if that doesn't resolve).</li>
-  <li>Enter your home WiFi, a Telegram bot token (from @BotFather) and your
-      user ID (from @userinfobot). Hit <b>Save settings</b>. Done — the board
-      closes its access point when your phone disconnects.</li>
-</ol>
+/* ═══════════════════════════════════════════════════════════
+   LAYOUT
+   ═══════════════════════════════════════════════════════════ */
+.wrap{position:relative;z-index:1;max-width:var(--max);margin:0 auto;padding:0 clamp(20px,5vw,48px)}
+section{padding:clamp(60px,10vw,120px) 0;position:relative}
+.section-tag{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--cyan);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.section-tag .dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+.section-title{font-size:clamp(1.8rem,5vw,3.2rem);font-weight:700;line-height:1.1;letter-spacing:-.03em;margin-bottom:16px}
+.section-desc{color:var(--muted);font-size:clamp(.95rem,1.8vw,1.1rem);max-width:580px;margin-bottom:48px}
 
-<h2>Other ways to get it</h2>
-<ul class="muted" style="font-size:14px">
-  <li><a href="firmware/barkcam-v1.bin">Download the firmware</a> and flash
-      with esptool: <code>esptool.py --chip esp32s3 write_flash 0x0 barkcam-v1.bin</code></li>
-  <li><a href="https://github.com/Snail3D/barkcam">Build from source</a>
-      (PlatformIO) — the repo has full docs.</li>
-  <li>Safari/Firefox users: WebSerial isn't supported there — use the download
-      above, or open this page in Chrome/Edge.</li>
-</ul>
+/* ═══════════════════════════════════════════════════════════
+   HERO — the board's own status screen, live
+   ═══════════════════════════════════════════════════════════ */
+.hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:120px 0 80px}
+.hero-grid{display:grid;grid-template-columns:.95fr 1.05fr;gap:clamp(32px,6vw,72px);align-items:center}
 
-<img src="ui-config.png" alt="The Bark Cam config UI on a phone">
-<p class="muted">The board's own setup page — where you enter WiFi and Telegram.</p>
+/* device dashboard panel */
+.device{
+  border-radius:20px;border:1px solid rgba(61,255,160,.28);
+  background:linear-gradient(180deg,#14141f,#0a0a12);
+  box-shadow:0 40px 90px rgba(0,0,0,.55),0 0 60px rgba(61,255,160,.07);
+  overflow:hidden;animation:fadeUp .8s .15s ease both;
+}
+.device-head{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--line)}
+.device-status{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;letter-spacing:.14em;color:var(--green)}
+.device-status .dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+.device-sim{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--muted)}
+#meter{display:block;width:100%;height:150px;background:#050508}
+.device-reads{display:flex;gap:clamp(14px,3vw,28px);padding:16px 20px;border-top:1px solid var(--line)}
+.read .k{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.read .v{font-family:var(--mono);font-size:15px;margin-top:2px}
+.read .v.green{color:var(--green)} .read .v.gold{color:var(--gold)}
+.device-foot{padding:10px 20px;border-top:1px solid var(--line);font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--muted)}
+
+/* offer + action */
+.hero-copy{animation:fadeUp .8s ease both}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--green);padding:6px 16px;border:1px solid rgba(61,255,160,.2);border-radius:999px;
+  margin-bottom:24px;background:rgba(61,255,160,.04);
+}
+.hero-badge .dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+.hero h1{font-size:clamp(2.8rem,7vw,5.4rem);font-weight:700;line-height:.95;letter-spacing:-.04em}
+.hero h1 .accent{background:linear-gradient(135deg,var(--green),var(--cyan));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.serif{font-family:var(--serif);font-style:italic;font-weight:400;letter-spacing:-.02em}
+.hero-sub{color:var(--muted);font-size:clamp(1rem,2vw,1.25rem);max-width:480px;margin:20px 0 32px;line-height:1.55}
+
+.flash-box{max-width:480px}
+#flash{
+  width:100%;font-family:var(--sans);font-size:17px;font-weight:600;
+  background:rgba(61,255,160,.1);color:var(--green);
+  border:1px solid rgba(61,255,160,.4);border-radius:12px;
+  padding:18px 24px;cursor:pointer;transition:all .3s;
+}
+#flash:hover:not(:disabled){border-color:var(--green);box-shadow:0 0 28px rgba(61,255,160,.25);transform:translateY(-2px)}
+#flash:active:not(:disabled){opacity:.7}
+#flash:disabled{opacity:.4;cursor:default}
+#flash:focus-visible,.nav-cta:focus-visible,a:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+#bar{height:8px;background:#1a1a24;border-radius:4px;overflow:hidden;margin-top:14px;display:none}
+#fill{height:100%;width:0;background:linear-gradient(90deg,var(--green),var(--cyan));transition:width .2s}
+#status{min-height:22px;font-family:var(--mono);font-size:13px;margin-top:10px;color:var(--muted)}
+#status.ok{color:var(--green)} #status.err{color:var(--magenta)}
+.flash-note{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--muted);margin-top:12px}
+
+.hero-scroll{
+  position:absolute;bottom:28px;left:50%;transform:translateX(-50%);
+  font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--muted);
+  display:flex;flex-direction:column;align-items:center;gap:8px;
+  animation:fadeUp 1s .6s ease both;
+}
+.hero-scroll .line{width:1px;height:32px;background:linear-gradient(to bottom,var(--muted),transparent);animation:scrollLine 2s infinite}
+
+/* ═══════════════════════════════════════════════════════════
+   SETUP — three steps + the board's own config screen
+   ═══════════════════════════════════════════════════════════ */
+.setup-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(32px,6vw,72px);align-items:center}
+.steps{list-style:none;display:flex;flex-direction:column;gap:20px;margin-top:8px}
+.steps li{display:flex;gap:16px;align-items:flex-start;color:var(--muted);font-size:.98rem;line-height:1.55}
+.steps .n{font-family:var(--mono);font-size:12px;color:var(--green);border:1px solid rgba(61,255,160,.3);border-radius:8px;padding:4px 9px;flex-shrink:0;margin-top:2px}
+.steps b{color:var(--fg);font-weight:600}
+.setup-visual{position:relative;display:flex;justify-content:center}
+.phone-glow{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:min(460px,92vw);height:min(80vh,660px);
+  background:radial-gradient(circle,rgba(61,255,160,.13),transparent 65%);
+  animation:breathe 4.5s ease-in-out infinite;pointer-events:none;
+}
+.phone-frame{
+  position:relative;border-radius:40px;padding:12px;
+  background:linear-gradient(180deg,#14141f,#0a0a12);
+  border:1px solid rgba(61,255,160,.28);
+  box-shadow:0 40px 90px rgba(0,0,0,.55),0 0 60px rgba(61,255,160,.07);
+}
+.phone-frame img{border-radius:30px;width:min(280px,56vw);height:auto}
+
+/* ═══════════════════════════════════════════════════════════
+   OTHER WAYS
+   ═══════════════════════════════════════════════════════════ */
+.alt-list{list-style:none;display:flex;flex-direction:column;gap:18px;max-width:640px}
+.alt-list li{display:flex;gap:12px;color:var(--muted);font-size:.95rem;line-height:1.6}
+.alt-list li::before{content:'▸';font-family:var(--mono);color:var(--green);flex-shrink:0}
+.alt-list a{color:var(--fg);border-bottom:1px solid rgba(61,255,160,.35);transition:color .3s,border-color .3s}
+.alt-list a:hover{color:var(--green);border-color:var(--green)}
+code,pre{font-family:var(--mono);font-size:.85em}
+.alt-list code{background:#1a1a24;border:1px solid var(--line);border-radius:6px;padding:2px 8px;color:var(--fg)}
+.alt-list pre{background:#0a0a12;border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin-top:8px;overflow-x:auto;color:var(--muted);line-height:1.7}
+.alt-list pre .c{color:var(--green)}
+
+/* ═══════════════════════════════════════════════════════════
+   FOOTER
+   ═══════════════════════════════════════════════════════════ */
+footer{padding:60px 0 40px;border-top:1px solid var(--line);display:flex;flex-direction:column;align-items:center;gap:24px;position:relative;z-index:1}
+footer .links{display:flex;gap:24px;flex-wrap:wrap;justify-content:center}
+footer .links a{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:13px;color:var(--muted);transition:color .3s}
+footer .links a:hover{color:var(--fg)}
+footer .copyright{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.08em}
+
+/* ═══════════════════════════════════════════════════════════
+   MOTION
+   ═══════════════════════════════════════════════════════════ */
+@keyframes fadeUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.3)}}
+@keyframes scrollLine{0%{transform:scaleY(0);transform-origin:top}50%{transform:scaleY(1);transform-origin:top}50.1%{transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
+@keyframes breathe{0%,100%{opacity:.55;transform:translate(-50%,-50%) scale(1)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.07)}}
+.reveal{opacity:0;transform:translateY(40px);transition:opacity .7s ease,transform .7s ease}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+/* ═══════════════════════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════════════════════ */
+@media(max-width:920px){
+  .hero-grid,.setup-grid{grid-template-columns:1fr;gap:40px}
+  .hero-copy{order:-1}
+  .device{max-width:560px;margin:0 auto;width:100%}
+  .setup-visual{order:-1}
+  .phone-frame img{width:min(260px,54vw)}
+}
+@media(max-width:640px){
+  nav{flex-wrap:wrap;row-gap:10px}   // two-row nav on phones — links stay reachable
+  .nav-links a:not(.nav-cta){font-size:12px} .nav-links{gap:8px} .nav-logo{font-size:15px}
+  #meter{height:120px}
+}
+
+/* Reduce motion */
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms!important;transition-duration:.01ms!important}
+  html{scroll-behavior:auto}
+}
+</style>
+</head>
+<body>
+<!--
+IMPECCABLE DIRECTION CONTRACT — barkcam flasher (docs/index.html)
+
+THESIS: The page opens as the board's own status screen — a live listening
+meter with bark bursts firing against a threshold — because hearing is the
+product. It refuses the category default of a static hero plus feature cards.
+
+OWN-WORLD: snail3d.com's system, inherited whole: #05050a ground, neon
+accents with green (#3dffa0) as Bark Cam's voice, Space Grotesk display +
+JetBrains Mono data + Instrument Serif italic accents, drifting particle
+canvas, film grain.
+
+STORY: A visitor sees the board listening (a labeled simulated feed),
+believes it works, clicks one button to flash their own board, then follows
+three steps through the 10-minute config window. Done in ~2 minutes.
+
+FIRST VIEWPORT: fixed nav; two-column hero — left, the device dashboard
+panel (status dot, live meter canvas with threshold line and bark bursts,
+mono readouts, SIMULATED FEED label); right, badge + "Bark Cam" title with
+gradient accent, the portfolio's approved sub-copy, and the green flash CTA
+with progress bar. Stacks copy-first on mobile.
+
+FORM: device-dashboard opening — assigned structure 6 of 7 grounded
+candidates (live-meter hero, sticky two-column tool, terminal console,
+phone-frame page, step wizard, dashboard, minimal card); seed key d55b24d5.
+All six dealt challengers fused poorly against the brief-pinned snail3d.com
+identity and were set aside.
+
+FINISH: unreviewed and undocumented is unfinished; this build ends with the
+finish review, the verdict, and DESIGN.md.
+-->
+<canvas id="bgCanvas" aria-hidden="true"></canvas>
+<div class="grain" aria-hidden="true"></div>
+
+<nav id="nav">
+  <a class="nav-logo" href="#top"><span class="dot"></span>BARK CAM</a>
+  <div class="nav-links">
+    <a href="#flash-sec">Flash</a>
+    <a href="#setup">Setup</a>
+    <a href="#other">Other ways</a>
+    <a class="nav-cta" href="https://github.com/Snail3D/barkcam" target="_blank">GitHub ↗</a>
+  </div>
+</nav>
+
+<main id="top">
+<!-- ═══════════ HERO — the board, listening ═══════════ -->
+<section class="hero" id="flash-sec">
+  <div class="wrap hero-grid">
+
+    <div class="device" role="img" aria-label="Simulated live microphone level with the bark threshold — green bars are ambient noise, bright spikes are barks">
+      <div class="device-head">
+        <span class="device-status"><span class="dot"></span>LISTENING</span>
+        <span class="device-sim">SIMULATED FEED</span>
+      </div>
+      <canvas id="meter" aria-hidden="true"></canvas>
+      <div class="device-reads">
+        <div class="read"><div class="k">Noise floor</div><div class="v green" id="rNoise">—</div></div>
+        <div class="read"><div class="k">Threshold</div><div class="v gold" id="rThr">—</div></div>
+        <div class="read"><div class="k">Last bark</div><div class="v" id="rBark">—</div></div>
+      </div>
+      <div class="device-foot">XIAO ESP32S3 SENSE · FW V1</div>
+    </div>
+
+    <div class="hero-copy">
+      <span class="hero-badge"><span class="dot"></span>Latest build · v1</span>
+      <h1>Bark <span class="accent">Cam</span></h1>
+      <p class="hero-sub">A credit-card-sized camera that listens for your dog. When it hears a bark, it snaps a photo and texts it to you on Telegram — no cloud, no AI model, just signal processing on the board.</p>
+      <div class="flash-box">
+        <button id="flash">⚡ Flash in your browser</button>
+        <div id="bar"><div id="fill"></div></div>
+        <div id="status" role="status" aria-live="polite"></div>
+        <p class="flash-note">Chrome or Edge · no install · your saved settings are kept</p>
+      </div>
+    </div>
+
+  </div>
+  <div class="hero-scroll" aria-hidden="true">SCROLL<span class="line"></span></div>
+</section>
+
+<!-- ═══════════ SETUP ═══════════ -->
+<section id="setup">
+  <div class="wrap">
+    <div class="section-tag reveal"><span class="dot"></span>Setup</div>
+    <h2 class="section-title reveal">Two minutes, <span class="serif">one time</span></h2>
+    <p class="section-desc reveal">After flashing, the board walks you through it. Everything is saved on the board — no account, no cloud.</p>
+    <div class="setup-grid">
+      <ol class="steps reveal">
+        <li><span class="n">01</span><div>Power the board (USB). For 10 minutes it broadcasts an open network <b>barkcam-config</b> — connect your phone to it.</div></li>
+        <li><span class="n">02</span><div>Open <b>barkcam.local</b> in your phone's browser (or <b>192.168.4.1</b> if that doesn't resolve).</div></li>
+        <li><span class="n">03</span><div>Enter your home WiFi, a Telegram bot token (from <b>@BotFather</b>) and your user ID (from <b>@userinfobot</b>). Hit <b>Save settings</b>. Done — the board closes its access point when your phone leaves.</div></li>
+      </ol>
+      <div class="setup-visual reveal">
+        <div class="phone-glow"></div>
+        <div class="phone-frame">
+          <img src="ui-config.png" alt="The Bark Cam config UI on a phone — live mic level with bark threshold, sensitivity, camera and Telegram settings" loading="lazy">
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ OTHER WAYS ═══════════ -->
+<section id="other">
+  <div class="wrap">
+    <div class="section-tag reveal"><span class="dot"></span>Other ways</div>
+    <h2 class="section-title reveal">Prefer the terminal?</h2>
+    <ul class="alt-list reveal">
+      <li><div><a href="firmware/barkcam-v1.bin">Download the firmware</a> and flash with esptool:
+<pre><span class="c">$</span> esptool.py --chip esp32s3 write_flash 0x0 barkcam-v1.bin</pre></div></li>
+      <li><div><a href="https://github.com/Snail3D/barkcam" target="_blank">Build from source</a> (PlatformIO) — the repo has full docs.</div></li>
+      <li><div>Safari and Firefox don't support WebSerial — use the download above, or open this page in Chrome/Edge.</div></li>
+    </ul>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="links">
+    <a href="https://github.com/Snail3D/barkcam" target="_blank">GitHub ↗</a>
+    <a href="https://snail3d.com" target="_blank">snail3d.com ↗</a>
+  </div>
+  <div class="copyright">© 2026 SNAIL3D · BUILT IN EL PASO, TX</div>
+</footer>
 
 <script type="module">
 import { ESPLoader, Transport } from './esptool-bundle.js';
 
 const $ = id => document.getElementById(id);
-const status = (msg, ok) => { $('status').textContent = msg; $('status').style.color = ok ? '#8f8' : (msg.startsWith('⚠') || msg.startsWith('✗') ? '#f88' : '#eee'); };
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+/* ── status line ─────────────────────────────────────────── */
+const status = (msg, ok) => {
+  $('status').textContent = msg;
+  $('status').className = ok === undefined ? '' : (ok ? 'ok' : 'err');
+};
+
+/* ── flasher — WebSerial + esptool (unchanged mechanism) ─── */
 if (!navigator.serial) {
   $('flash').disabled = true;
   status('⚠ This browser has no WebSerial — use Chrome or Edge, or download the firmware below.');
 } else {
-  // doFlash lives in module scope — an inline onclick attribute can't see it.
   $('flash').addEventListener('click', doFlash);
 }
 
@@ -96,13 +387,141 @@ async function doFlash() {
     await esp.after("hard_reset");
     await transport.disconnect();
     $('fill').style.width = '100%';
-    status('✓ Flashed! The board is rebooting. Now do step 2: connect to the barkcam-config WiFi.', true);
+    status('✓ Flashed! The board is rebooting. Now do step 1: connect to the barkcam-config WiFi.', true);
     btn.disabled = false;
   } catch (e) {
     console.error(e);
     btn.disabled = false;
-    status('✗ ' + (e.message || e) + ' — if the board is running, hold its BOOT button while plugging in USB (bootloader mode), then try again.');
+    status('✗ ' + (e.message || e) + ' — if the board is running, hold its BOOT button while plugging in USB (bootloader mode), then try again.', false);
   }
 }
+
+/* ── atmosphere — particle field (snail3d.com, barkcam palette) ── */
+(function(){
+  const c = $('bgCanvas'), ctx = c.getContext('2d');
+  let w, h, dpr;
+  const colors = ['#3dffa0','#00f0ff','#8d79ff','#ffb83d'];
+  const N = 80;
+  const P = [];
+
+  function resize(){
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    w = c.width = innerWidth * dpr; h = c.height = innerHeight * dpr;
+    c.style.width = innerWidth + 'px'; c.style.height = innerHeight + 'px';
+  }
+  resize(); addEventListener('resize', resize);
+
+  for (let i = 0; i < N; i++) P.push({
+    x: Math.random()*w, y: Math.random()*h,
+    vx: (Math.random()-.5)*.3*dpr, vy: (Math.random()-.5)*.3*dpr,
+    r: (Math.random()*1.5+.5)*dpr, color: colors[i % 4], alpha: Math.random()*.35+.1
+  });
+
+  let mx = -9e4, my = -9e4;
+  addEventListener('mousemove', e => { mx = e.clientX*dpr; my = e.clientY*dpr; });
+
+  function draw(t){
+    ctx.clearRect(0,0,w,h);
+    // drifting gradient orbs
+    const o1x = w*.3 + Math.sin(t)*w*.1, o1y = h*.4 + Math.cos(t*.7)*h*.1;
+    let g = ctx.createRadialGradient(o1x,o1y,0,o1x,o1y,w*.3);
+    g.addColorStop(0,'rgba(61,255,160,.03)'); g.addColorStop(1,'rgba(61,255,160,0)');
+    ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
+    const o2x = w*.7 + Math.cos(t*1.3)*w*.1, o2y = h*.65 + Math.sin(t*.9)*h*.1;
+    g = ctx.createRadialGradient(o2x,o2y,0,o2x,o2y,w*.25);
+    g.addColorStop(0,'rgba(141,121,255,.03)'); g.addColorStop(1,'rgba(141,121,255,0)');
+    ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
+
+    for (let i = 0; i < N; i++){
+      const p = P[i];
+      if (!reduced){
+        p.x += p.vx; p.y += p.vy;
+        const dx = mx-p.x, dy = my-p.y, d2 = dx*dx+dy*dy;
+        if (d2 < 150*dpr*150*dpr && d2 > 0){ const d = Math.sqrt(d2); p.x += dx/d*.3; p.y += dy/d*.3; }
+        if (p.x < 0) p.x = w; if (p.x > w) p.x = 0;
+        if (p.y < 0) p.y = h; if (p.y > h) p.y = 0;
+      }
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle = p.color; ctx.globalAlpha = p.alpha; ctx.fill(); ctx.globalAlpha = 1;
+      for (let j = i+1; j < N; j++){
+        const q = P[j], dx = p.x-q.x, dy = p.y-q.y;
+        if (dx*dx+dy*dy < 110*dpr*110*dpr){
+          ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(q.x,q.y);
+          ctx.strokeStyle = p.color; ctx.globalAlpha = .06; ctx.lineWidth = 1*dpr;
+          ctx.stroke(); ctx.globalAlpha = 1;
+        }
+      }
+    }
+  }
+
+  if (reduced){ draw(0); return; }   // one static frame
+  const loop = now => { draw(now*.0003); requestAnimationFrame(loop); };
+  requestAnimationFrame(loop);
+})();
+
+/* ── the meter — simulated bark feed (labeled as such) ───── */
+(function(){
+  const c = $('meter'), ctx = c.getContext('2d');
+  let w, h, dpr;
+  const BARS = 48;
+  const hist = new Array(BARS).fill(0.28);
+  const THR = 0.6;                     // ≈ noise floor + 15 dB margin (what the real board shows)
+  let ambient = 0.3, burstLeft = 0, lastBarkAt = -1e9;
+
+  function resize(){
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    w = c.width = c.clientWidth * dpr; h = c.height = c.clientHeight * dpr;
+  }
+  resize(); addEventListener('resize', () => { resize(); draw(); });
+
+  const db = v => (-80 + Math.max(0, Math.min(1, v)) * 60).toFixed(1);
+
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    const bw = w / BARS;
+    for (let i = 0; i < BARS; i++){
+      const v = Math.max(0, Math.min(1, hist[i]));
+      ctx.fillStyle = v > THR ? '#f55' : '#2d7';   // the board's own UI colors — sim reads as one device
+      const bh = v * h * .92;
+      ctx.fillRect(i*bw, h - bh, bw - 1.5*dpr, bh);
+    }
+    const ty = h * (1 - THR);
+    ctx.fillStyle = '#fa0';
+    ctx.fillRect(0, ty - 1*dpr, w, 2*dpr);
+  }
+
+  function tick(){
+    // ambient random walk
+    ambient += (Math.random() - .5) * .015;
+    ambient = Math.max(.22, Math.min(.42, ambient));
+    let v = ambient + (Math.random() - .5) * .03;
+    // bark burst: a real dog barks in short sequences — 2–3 spikes
+    if (burstLeft > 0){ v = Math.max(v, .8 + Math.random()*.1); burstLeft--; }
+    else if (performance.now() - lastBarkAt > 4000 + Math.random()*5000){
+      lastBarkAt = performance.now(); burstLeft = 2 + Math.floor(Math.random()*2);
+      v = Math.max(v, .85 + Math.random()*.08);
+    }
+    hist.push(Math.max(0.02, Math.min(1, v))); hist.shift();
+
+    $('rNoise').textContent = db(ambient) + ' dBFS';
+    $('rThr').textContent = db(THR) + ' dBFS';
+    const s = Math.floor((performance.now() - lastBarkAt) / 1000);
+    $('rBark').textContent = s < 3 ? 'just now' : (s < 60 ? s + 's ago' : Math.floor(s/60) + 'm ago');
+    draw();
+  }
+
+  if (reduced){ hist.fill(ambient); tick(); return; }   // one static frame
+  setInterval(tick, 250);
+  tick();
+})();
+
+/* ── reveal on scroll + nav state (snail3d.com patterns) ──── */
+const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting){ e.target.classList.add('visible'); io.unobserve(e.target); } }), { threshold: .15 });
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+const nav = $('nav');
+addEventListener('scroll', () => nav.classList.toggle('scrolled', scrollY > 40), { passive: true });
+nav.classList.toggle('scrolled', scrollY > 40);
 </script>
-</body></html>
+</body>
+</html>
