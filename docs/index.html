@@ -276,13 +276,14 @@ finish review, the verdict, and DESIGN.md.
         <div class="read"><div class="k">Threshold</div><div class="v gold" id="rThr">—</div></div>
         <div class="read"><div class="k">Last bark</div><div class="v" id="rBark">—</div></div>
       </div>
-      <div class="device-foot">XIAO ESP32S3 SENSE · FW V1</div>
+      <div class="device-foot">XIAO ESP32S3 SENSE · FW V1.1</div>
     </div>
 
     <div class="hero-copy">
-      <span class="hero-badge"><span class="dot"></span>Latest build · v1</span>
+      <span class="hero-badge"><span class="dot"></span>Latest build · v1.1</span>
       <h1>Bark <span class="accent">Cam</span></h1>
       <p class="hero-sub">A half-dollar-size camera board that listens for your dog. When it hears a bark, it snaps a photo and texts it to you on Telegram — no cloud, no AI model, just signal processing on the board.</p>
+      <p style="color:var(--muted);font-size:.9rem;max-width:480px;margin:-14px 0 30px;line-height:1.55">New in <span style="color:var(--green);font-weight:600">v1.1</span> — auto-exposure for changing light, a few photos per barking episode, and a quiet-hours schedule.</p>
       <div class="flash-box">
         <button id="flash">⚡ Flash in your browser</button>
         <div id="bar"><div id="fill"></div></div>
@@ -323,8 +324,8 @@ finish review, the verdict, and DESIGN.md.
     <div class="section-tag reveal"><span class="dot"></span>Other ways</div>
     <h2 class="section-title reveal">Prefer the terminal?</h2>
     <ul class="alt-list reveal">
-      <li><div><a href="firmware/barkcam-v1.bin">Download the firmware</a> and flash with esptool:
-<pre><span class="c">$</span> esptool.py --chip esp32s3 write_flash 0x0 barkcam-v1.bin</pre></div></li>
+      <li><div><a href="firmware/barkcam-v1.1.bin">Download the firmware</a> and flash with esptool:
+<pre><span class="c">$</span> esptool.py --chip esp32s3 write_flash 0x0 barkcam-v1.1.bin</pre></div></li>
       <li><div><a href="https://github.com/Snail3D/barkcam" target="_blank">Build from source</a> (PlatformIO) — the repo has full docs.</div></li>
       <li><div>Safari and Firefox don't support WebSerial — use the download above, or open this page in Chrome/Edge.</div></li>
     </ul>
@@ -365,7 +366,7 @@ async function doFlash() {
   try {
     btn.disabled = true;
     status('Downloading firmware…');
-    const data = new Uint8Array(await (await fetch('firmware/barkcam-v1.bin')).arrayBuffer());
+    const data = new Uint8Array(await (await fetch('firmware/barkcam-v1.1.bin')).arrayBuffer());
     status(`Firmware ready (${(data.length/1048576).toFixed(2)} MB) — now pick the board's USB port in the popup…`);
     const port = await navigator.serial.requestPort();
     const transport = new Transport(port, true);

@@ -27,13 +27,13 @@ No cloud, no AI model — DSP on the board: high-pass filter, adaptive noise flo
 - The board auto-resets into bootloader on connect; no button pressing (XIAO ESP32S3 native USB).
 - After flashing: board broadcasts open AP "barkcam-config" for 10 minutes; config UI at barkcam.local (or 192.168.4.1).
 - The flasher writes the merged bin to 0x0 without erasing — NVS config survives re-flashes.
-- Hosted on GitHub Pages (snail3d.github.io/barkcam). Local assets: esptool-bundle.js, firmware/barkcam-v1.bin (~1.06 MB), ui-config.png.
+- Hosted on GitHub Pages (snail3d.github.io/barkcam). Local assets: esptool-bundle.js, firmware/barkcam-v1.1.bin (~1.04 MB), ui-config.png.
 
 ## Capabilities and Constraints
 
 - WebSerial + esptool-bundle.js (local ES module) is the flash mechanism; it must keep working exactly as-is.
 - Firmware bin: single merged file (bootloader@0x0 + partitions@0x8000 + app@0x10000), qio/80m/8MB.
-- Product version v1 (FIRMWARE_VERSION 7); board is XIAO ESP32S3 Sense only.
+- Product version v1.1 (FIRMWARE_VERSION 9); board is XIAO ESP32S3 Sense only.
 - Fonts load from the same Google Fonts CDN as snail3d.com (Space Grotesk, JetBrains Mono, Instrument Serif).
 
 ## Brand Commitments

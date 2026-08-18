@@ -48,12 +48,15 @@ struct AppConfig {
     int rotate;           // photo orientation: 0=none 3=180 (90° not supported by this camera)
     int exposure;         // photo brightness: 0=dim 1=medium 2=bright
     uint32_t apWindowMs;  // config-AP window at boot (default 10 min)
+    uint8_t daysMask;     // quiet-hours: which days are on (bit0=Mon..bit6=Sun)
+    uint32_t hoursMask;   // quiet-hours: bit N set = on during hour N (0=midnight)
 };
 
 static AppConfig cfg = {
     WIFI_SSID, WIFI_PASSWORD,
     TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID,
-    THRESHOLD_MARGIN_DB, COOLDOWN_MS, CAM_ROTATE_DEFAULT, CAM_EXPOSURE_DEFAULT, AP_WINDOW_MS
+    THRESHOLD_MARGIN_DB, COOLDOWN_MS, CAM_ROTATE_DEFAULT, CAM_EXPOSURE_DEFAULT, AP_WINDOW_MS,
+    SCHED_DAYS_DEFAULT, SCHED_HOURS_DEFAULT
 };
 
 static Preferences prefs;   // namespace "barkcam" (opened in loadConfig)
@@ -68,6 +71,19 @@ static void loadConfig() {
     if (prefs.isKey("rotate"))   { int r = prefs.getInt("rotate", CAM_ROTATE_DEFAULT); cfg.rotate = (r == 0 || r == 3) ? r : CAM_ROTATE_DEFAULT; }
     if (prefs.isKey("exposure")) cfg.exposure = prefs.getInt("exposure", CAM_EXPOSURE_DEFAULT);
     if (prefs.isKey("apWindow")) cfg.apWindowMs = prefs.getInt("apWindow", AP_WINDOW_MS);
+    if (prefs.isKey("daysMask")) { int v = prefs.getInt("daysMask", SCHED_DAYS_DEFAULT); cfg.daysMask = (uint8_t)(v & 0x7F); }
+    if (prefs.isKey("hoursMask")) cfg.hoursMask = (uint32_t)(prefs.getInt("hoursMask", (int)SCHED_HOURS_DEFAULT) & 0xFFFFFFu);
+    else if (prefs.isKey("schedFrom") || prefs.isKey("schedTo")) {
+        // Upgrade path: a pre-v1.1 board stored an inclusive from/to window —
+        // convert it to the per-hour mask so the user's schedule survives.
+        int from = prefs.getInt("schedFrom", 0);   from = (from >= 0 && from <= 23) ? from : 0;
+        int to   = prefs.getInt("schedTo", 23);    to   = (to >= 0 && to <= 23) ? to : 23;
+        uint32_t m = 0;
+        if (from == to) m = SCHED_HOURS_DEFAULT;
+        else if (from < to) { for (int h = from; h <= to; h++) m |= 1u << h; }
+        else { for (int h = from; h < 24; h++) m |= 1u << h; for (int h = 0; h <= to; h++) m |= 1u << h; }
+        cfg.hoursMask = m;
+    }
 }
 
 static void saveConfig() {
@@ -79,6 +95,8 @@ static void saveConfig() {
     prefs.putInt("rotate", cfg.rotate);
     prefs.putInt("exposure", cfg.exposure);
     prefs.putInt("apWindow", (int)cfg.apWindowMs);
+    prefs.putInt("daysMask", (int)cfg.daysMask);
+    prefs.putInt("hoursMask", (int)cfg.hoursMask);
 }
 
 // ============================ globals
@@ -89,6 +107,8 @@ static bool cameraReady = false;
 static BarkDetector detector;
 
 static uint32_t lastSendMs = 0;          // cooldown anchor
+static uint32_t lastBarkMs = 0;          // last confirmed bark event (episode tracking)
+static uint8_t episodeCount = 0;         // successful photos sent during the current episode
 static volatile uint32_t loopTick = 0;   // watchdog ping
 static bool working = false;             // LED solid while capturing/sending
 
@@ -156,14 +176,17 @@ static void applyCameraTuning() {
     int flip = (cfg.rotate == 3) ? 1 : 0;   // 180° = vertical flip (upside-down fix)
     s->set_vflip(s, flip);
     s->set_hmirror(s, 0);                   // no horizontal mirror on this camera
-    // Exposure: spread dim/medium/bright over the sensor's real -2..+2 range so
-    // "dim" is genuinely dark (it was 0/1/2 = neutral..bright, i.e. still bright).
-    // Driven through both brightness and AE level for a strong, reliable effect.
+    // Auto-exposure + auto-gain: this install is fixed on a window, so light
+    // varies all day — let the sensor adapt (AEC/AGC) instead of a fixed exposure.
+    // NOTE: the OV2640 has no plain "set_aec" — AEC enable is set_exposure_ctrl.
+    s->set_exposure_ctrl(s, 1);   // AEC on
+    s->set_gain_ctrl(s, 1);       // AGC on
+    // dim/medium/bright bias the AEC target over the sensor's real -2..+2 range.
     static const int8_t EXPO_LV[] = { -2, 0, 2 };
     int e = cfg.exposure; if (e < 0) e = 0; else if (e > 2) e = 2;
     int lv = EXPO_LV[e];
-    s->set_brightness(s, lv);
     s->set_ae_level(s, lv);
+    s->set_brightness(s, lv);
 }
 
 static bool initCamera() {
@@ -253,6 +276,14 @@ static bool capturePhoto(uint8_t **out, size_t *outLen) {
         return false;
     }
     if (!cameraReady) return false;
+
+    // Let AEC/AGC converge on the current scene: grab and discard a few frames
+    // so the auto-exposure settles before we capture the real one.
+    for (int i = 0; i < AEC_SETTLE_FRAMES; i++) {
+        camera_fb_t *warm = esp_camera_fb_get();
+        if (warm) esp_camera_fb_return(warm);
+        else break;
+    }
 
     camera_fb_t *fb = esp_camera_fb_get();
     if (!fb) { Serial.println("camera: no frame"); return false; }
@@ -351,13 +382,50 @@ static bool sendTelegramPhoto(const uint8_t *jpeg, size_t jpegLen) {
 
 // ============================ bark event handler
 
+// Quiet-hours gate: is the schedule currently "on"? (day enabled AND the
+// current hour is toggled on). Fails OPEN when NTP hasn't synced — a lost
+// clock must never silence the dog alerts.
+static bool scheduleActive() {
+    time_t t = time(nullptr);
+    if (t < 1600000000) return true;   // NTP not synced yet — allow the send
+    struct tm lt;
+    localtime_r(&t, &lt);
+    int bit = (lt.tm_wday == 0) ? 6 : (lt.tm_wday - 1);   // tm_wday 0=Sun -> bit6; 1=Mon -> bit0
+    if (!((cfg.daysMask >> bit) & 1)) return false;
+    return ((cfg.hoursMask >> lt.tm_hour) & 1) != 0;      // per-hour on/off
+}
+
 static void handleBarkEvent(const char *why, bool force) {
     uint32_t now = millis();
-    if (!force && (now - lastSendMs) < cfg.cooldownMs) {
+
+    // Quiet-hours schedule (real bark events only — manual tests bypass it).
+    if (!force && !scheduleActive()) {
+        static uint32_t lastSchedPrint = 0;
+        if (now - lastSchedPrint > 10000) {
+            Serial.println("bark event — schedule off (quiet hours), skipping");
+            lastSchedPrint = now;
+        }
+        return;
+    }
+
+    // Episode tracking: detector.eventDetected() re-fires as the dog keeps
+    // barking — that re-fire is the "still barking" signal.
+    if (!force) {
+        if ((now - lastBarkMs) > EPISODE_GAP_MS) episodeCount = 0;   // quiet long enough => new episode
+        lastBarkMs = now;
+    }
+
+    // Send gate: the between-episode cap (COOLDOWN_MS), or — while the episode
+    // is still active and under the per-episode photo cap — the shorter repeat gap.
+    bool allow = force ||
+                 (now - lastSendMs >= cfg.cooldownMs) ||
+                 (now - lastSendMs >= EPISODE_REPEAT_MS && episodeCount < EPISODE_MAX);
+    if (!allow) {
         // Throttle the "skipping" log so a barking fit doesn't spam serial.
         static uint32_t lastSkipPrint = 0;
         if (now - lastSkipPrint > 10000) {
-            Serial.printf("bark event (%s) in cooldown — skipping\n", why);
+            Serial.printf("bark event (%s) throttled — skipping (episode %u/%u)\n", why,
+                          (unsigned)episodeCount, (unsigned)EPISODE_MAX);
             lastSkipPrint = now;
         }
         return;
@@ -396,7 +464,8 @@ static void handleBarkEvent(const char *why, bool force) {
         lastSendMs = now - (cfg.cooldownMs > retry ? cfg.cooldownMs - retry : 0);
         Serial.println("send failed — will retry sooner if barking continues");
     } else {
-        Serial.printf("photo sent. next send allowed in %lu s\n", (unsigned long)(cfg.cooldownMs / 1000));
+        if (!force) episodeCount++;   // count successful photos this episode
+        Serial.printf("photo sent (episode %u/%u)\n", (unsigned)episodeCount, (unsigned)EPISODE_MAX);
     }
 }
 
@@ -460,7 +529,9 @@ static void handleGetConfig() {
              + "\",\"margin\":" + String(cfg.marginDb, 1)
              + ",\"rotate\":" + String(cfg.rotate)
              + ",\"exposure\":" + String(cfg.exposure)
-             + ",\"apWindowMs\":" + String((uint32_t)cfg.apWindowMs) + "}";
+             + ",\"apWindowMs\":" + String((uint32_t)cfg.apWindowMs)
+             + ",\"daysMask\":" + String((int)cfg.daysMask)
+             + ",\"hoursMask\":" + String((int)cfg.hoursMask) + "}";
     server.send(200, "application/json", j);
 }
 
@@ -474,6 +545,8 @@ static void handlePostConfig() {
     if (server.hasArg("rotate"))     { int v = server.arg("rotate").toInt(); if (v == 0 || v == 3) { cfg.rotate = v; changed = true; } }
     if (server.hasArg("exposure"))   { int v = server.arg("exposure").toInt(); if (v >= 0 && v <= 2) { cfg.exposure = v; changed = true; } }
     if (server.hasArg("apWindowMs")) { uint32_t v = server.arg("apWindowMs").toInt(); if (v >= 5000) { cfg.apWindowMs = v; changed = true; } }
+    if (server.hasArg("daysMask"))  { int v = server.arg("daysMask").toInt(); cfg.daysMask = (uint8_t)(v & 0x7F); changed = true; }
+    if (server.hasArg("hoursMask")) { int v = server.arg("hoursMask").toInt(); cfg.hoursMask = (uint32_t)(v & 0xFFFFFF); changed = true; }
 
     if (changed) { saveConfig(); if (cameraReady) applyCameraTuning(); }
     Serial.println("config updated via web UI");
@@ -532,7 +605,9 @@ static void printStatus() {
         "threshold   : %6.1f dBFS (margin %.1f)\n"
         "last frame  : %6.1f dBFS\n"
         "wifi rssi   : %d dBm  sleep:%s  heap: %u KB  psram free: %u KB\n"
-        "cooldown    : %lu s remaining (cap %lu s)\n",
+        "cooldown    : %lu s remaining (cap %lu s)\n"
+        "schedule    : %s (%u/7 days, %u/24 hours on)\n"
+        "episode     : %u/%u photos, last bark %lu s ago\n",
         apMode ? "config AP" : (WiFi.isConnected() ? "sta" : "offline"),
         detector.noiseDb(),
         detector.thresholdDb(),
@@ -543,7 +618,13 @@ static void printStatus() {
         (unsigned)(ESP.getFreeHeap() / 1024),
         (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024),
         (unsigned long)cdLeft,
-        (unsigned long)(cfg.cooldownMs / 1000));
+        (unsigned long)(cfg.cooldownMs / 1000),
+        scheduleActive() ? "ON" : "off (quiet hours)",
+        (unsigned)__builtin_popcount((unsigned)cfg.daysMask),
+        (unsigned)__builtin_popcount((unsigned)cfg.hoursMask),
+        (unsigned)episodeCount,
+        (unsigned)EPISODE_MAX,
+        (unsigned long)((now - lastBarkMs) / 1000));
 }
 
 // ---- wifi scan (serial command 'w') — top networks by RSSI

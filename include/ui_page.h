@@ -19,6 +19,10 @@ label{font-size:13px;color:#aaa;white-space:nowrap;width:86px}
 .hint{font-size:12px;color:#777} .center{text-align:center}
 .help{flex:none;width:20px;height:20px;border-radius:50%;background:#345;color:#8cf;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
 a{color:#4cf}
+.day{flex:1;margin:0;padding:7px 0;font-size:13px;font-weight:700;background:#222;color:#777;border:1px solid #444;border-radius:6px;min-width:0;cursor:pointer}
+.day.on{background:#2d7;color:#111;border-color:#2d7}
+.hour{margin:0;padding:5px 0;font-size:11px;font-weight:700;background:#161616;color:#555;border:1px dashed #3a3a3a;border-radius:5px;min-width:0;cursor:pointer;text-align:center}
+.hour.on{background:#2d7;color:#111;border:1px solid #2d7}
 </style></head><body>
 <h1>&#128021; Bark Cam</h1>
 <canvas id="m" width="400" height="90"></canvas>
@@ -33,6 +37,17 @@ a{color:#4cf}
 <div class="row"><label>Exposure</label><select id="expo">
 <option value="0">dim</option><option value="1" selected>medium</option>
 <option value="2">bright</option></select></div>
+
+<h3>Schedule</h3>
+<div class="row"><label>Days</label>
+<div id="days" style="display:flex;gap:4px;flex:1">
+<button type="button" class="day" data-b="0">M</button><button type="button" class="day" data-b="1">T</button><button type="button" class="day" data-b="2">W</button><button type="button" class="day" data-b="3">T</button><button type="button" class="day" data-b="4">F</button><button type="button" class="day" data-b="5">S</button><button type="button" class="day" data-b="6">S</button>
+</div></div>
+<div class="row"><label>Hours</label>
+<div style="flex:1;min-width:0">
+<div id="hours" style="display:grid;grid-template-columns:repeat(12,1fr);gap:3px"></div>
+<div class="hint" style="margin-top:5px"><a href="#" onclick="setHours(0xFFFFFF);return false">all on</a> &middot; <a href="#" onclick="setHours(0);return false">all off</a> &middot; tap an hour to quiet it &mdash; <span id="hsum"></span></div>
+</div></div>
 
 <h3>Wi-Fi</h3>
 <div class="row"><label>SSID</label><input id="ssid"></div>
@@ -53,12 +68,26 @@ a{color:#4cf}
 <script>
 const $=id=>document.getElementById(id);
 let savedToken='';
+const dayBtns=[...document.querySelectorAll('#days .day')];
+const hourBtns=[];
+(function(){const g=$('hours');
+for(let h=0;h<24;h++){const b=document.createElement('button');b.type='button';b.className='hour';
+b.dataset.h=h;b.textContent=h===0?'12a':h<12?h+'a':h===12?'12p':(h-12)+'p';
+b.onclick=()=>{b.classList.toggle('on');hourSum();};g.appendChild(b);hourBtns.push(b);}})();
+dayBtns.forEach(b=>b.onclick=()=>b.classList.toggle('on'));
+function daysMask(){let m=0;dayBtns.forEach(b=>{if(b.classList.contains('on'))m|=1<<+b.dataset.b;});return m;}
+function hoursMask(){let m=0;hourBtns.forEach(b=>{if(b.classList.contains('on'))m|=1<<+b.dataset.h;});return m;}
+function setHours(m){hourBtns.forEach(b=>b.classList.toggle('on',(m>>+b.dataset.h)&1));hourSum();}
+function hourSum(){const on=hourBtns.filter(b=>b.classList.contains('on')).length;
+$('hsum').textContent=on===24?'always on':on===0?'never on':on+'h on / '+(24-on)+' quiet';}
 function load(){fetch('/config').then(r=>r.json()).then(c=>{
   $('ssid').value=c.ssid;$('pass').value=c.pass;
   savedToken=c.token||'';$('token').value=savedToken?savedToken.slice(0,12)+'\u2026':'';
   $('chatid').value=c.chatId;
   $('sens').value=c.margin;sensLabel();$('rot').value=String(c.rotate);
   $('expo').value=String(c.exposure);
+  setHours(c.hoursMask!=null?c.hoursMask:0xFFFFFF);
+  dayBtns.forEach(b=>b.classList.toggle('on',(c.daysMask>>+b.dataset.b)&1));
 }).catch(()=>{});}
 function sensLabel(){$('sensv').textContent=$('sens').value+' dB (lower = more sensitive)';}
 $('sens').oninput=sensLabel;
@@ -79,6 +108,7 @@ function save(){
   if($('token').value!==(savedToken?savedToken.slice(0,12)+'\u2026':'')) p.set('token',$('token').value);
   p.set('margin',$('sens').value);
   p.set('rotate',$('rot').value);p.set('exposure',$('expo').value);
+  p.set('daysMask',daysMask());p.set('hoursMask',hoursMask());
   fetch('/config',{method:'POST',body:p}).then(r=>r.json())
     .then(j=>$('msg').textContent=j.ok?'Saved \u2713 — you can disconnect now; the board closes its access point when your phone leaves.':'Save failed');}
 function testSend(){$('msg').textContent='Sending test photo\u2026';

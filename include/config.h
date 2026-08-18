@@ -32,6 +32,10 @@
 #define CAM_VFLIP      1
 #define CAM_HMIRROR    0
 #define CAM_JPEG_QUALITY 12 // lower = sharper but bigger file (5–30)
+// AEC settle: grab-and-discard this many frames right before a capture so the
+// sensor's auto-exposure converges on the current scene (fixed window-facing
+// camera, light varies all day).
+#define AEC_SETTLE_FRAMES  4
 
 // --- audio / bark detection tuning ---
 #define SAMPLE_RATE          16000
@@ -49,7 +53,22 @@
 #define BARK_WINDOW_MS       4000    // ...within this many ms
 
 // --- behavior ---
-#define COOLDOWN_MS          120000  // max one photo per 2 min (fixed — not user-tunable)
+#define COOLDOWN_MS          120000  // between-episode cap: at most one photo per 2 min (fixed — not user-tunable)
+// --- multi-photo bark episodes ---
+// A dog barking at something keeps going 10–60 s. While it keeps barking
+// (confirmed events arriving < EPISODE_GAP_MS apart) allow a few photos
+// EPISODE_REPEAT_MS apart, up to EPISODE_MAX per episode. COOLDOWN_MS above
+// is the hard cap between separate episodes.
+#define EPISODE_REPEAT_MS    8000    // min gap between photos during one active episode
+#define EPISODE_MAX          3       // max photos during one active episode
+#define EPISODE_GAP_MS       12000   // quiet this long => the bark episode has ended
+// --- quiet-hours schedule (day mask + per-hour on/off mask) ---
+// daysMask bits: 0=Mon 1=Tue 2=Wed 3=Thu 4=Fri 5=Sat 6=Sun.
+// hoursMask bits 0..23: bit N set = the device is ON during hour N (N=0 is
+// midnight). Default is all 24 bits set = always on; the UI shows every hour
+// lit and a tap turns that hour off (quiet).
+#define SCHED_DAYS_DEFAULT   0x7F       // all seven days (always on)
+#define SCHED_HOURS_DEFAULT  0xFFFFFFu  // all 24 hours on (always on by default)
 #define WIFI_TIMEOUT_MS      20000
 // Must outlast the worst un-ticked path in loop(): camera capture (~3 s) +
 // a Telegram send where every HTTP stage hits its 15 s timeout (~45 s).
@@ -61,7 +80,7 @@
 #define TZ_OFFSET_HOURS      0
 
 // Bump for each release — shown in the serial banner ("fw %d").
-#define FIRMWARE_VERSION   8
+#define FIRMWARE_VERSION   9
 
 // --- config access point (open AP, first N minutes after power-on) ---
 #define AP_SSID          "barkcam-config"

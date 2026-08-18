@@ -52,6 +52,8 @@ class Handler(BaseHTTPRequestHandler):
                 "token": "123456789:AAFAKE-TOKEN-VALUE-FOR-SCREENSHOT",
                 "chatId": "123456789",
                 "margin": 15, "rotate": 3, "exposure": 1,
+                # demo state for screenshots: all days on, 11pm–6am quiet
+                "daysMask": 127, "hoursMask": 8388480,
             }).encode())
         elif self.path == "/level":
             self._send(200, "application/json", json.dumps(level_payload()).encode())

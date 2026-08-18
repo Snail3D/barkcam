@@ -3,14 +3,15 @@
 Dog bark monitor on the **Seeed XIAO ESP32S3 Sense**. When it hears your dog
 bark, it takes a photo and sends it to you on Telegram.
 
-**v1:** hear bark → 1 photo → Telegram, max one photo per 2 minutes no
-matter how long the dog barks. Plus a phone-based config UI and a watchdog
-that reboots on a stalled loop.
+**v1.1:** hear bark → photo → Telegram. Auto-exposure adapts to the light,
+a barking episode now gets a few photos (not just one), and a quiet-hours
+schedule picks which days it's on and which hours are quiet. Plus a
+phone-based config UI and a watchdog that reboots on a stalled loop.
 
 ## Get it
 
 - **Easiest:** [flash it in your browser](https://snail3d.github.io/barkcam/) — no install needed (Chrome/Edge)
-- **Command line:** [download the firmware](https://snail3d.github.io/barkcam/firmware/barkcam-v1.bin) and run `esptool.py --chip esp32s3 write_flash 0x0 barkcam-v1.bin`
+- **Command line:** [download the firmware](https://snail3d.github.io/barkcam/firmware/barkcam-v1.1.bin) and run `esptool.py --chip esp32s3 write_flash 0x0 barkcam-v1.1.bin`
 - **Build from source:** see [Build & flash](#build--flash) below (PlatformIO)
 
 ## What it looks like
@@ -102,7 +103,10 @@ All knobs are in `include/config.h`:
 | `THRESHOLD_MARGIN_DB` | 15 | dB above noise floor to count as a bark. Too many false triggers → raise. Misses barks → lower (or use `1`/`2` live). |
 | `BARKS_TO_CONFIRM` | 2 | barks within the window to fire an event. Raise to 3 if door slams trigger it. |
 | `BARK_WINDOW_MS` | 4000 | window for counting barks |
-| `COOLDOWN_MS` | 120000 | hard cap: one photo per 2 minutes |
+| `COOLDOWN_MS` | 120000 | between-episode cap: one photo per 2 minutes |
+| `EPISODE_REPEAT_MS` | 8000 | min gap between photos during one active bark episode |
+| `EPISODE_MAX` | 3 | max photos during one active episode |
+| `EPISODE_GAP_MS` | 12000 | quiet this long = the episode has ended |
 | `BURST_MIN/MAX_FRAMES` | 3 / 24 | ~50–380 ms bark duration window |
 | `TZ_OFFSET_HOURS` | 0 | UTC offset for photo captions (e.g. -7 for Pacific) |
 
@@ -114,7 +118,7 @@ esptool one-liner above). The serial banner prints the firmware build number.
 
 ## Roadmap (v2)
 
-- 3–4 photo grid per event (compose on a small Python bridge)
+- Photo grid per event (compose the episode's shots on a small Python bridge)
 - Battery/deep-sleep strategy, SD card logging
 
 ## Gotchas
