@@ -175,7 +175,7 @@ section{padding:clamp(60px,10vw,120px) 0;position:relative}
   border:1px solid rgba(163,230,53,.28);
   box-shadow:0 40px 90px rgba(0,0,0,.55),0 0 60px rgba(163,230,53,.07);
 }
-.phone-frame img{border-radius:30px;width:min(280px,56vw);height:auto}
+.phone-frame img{border-radius:30px;width:auto;height:auto;max-width:min(280px,56vw);max-height:min(540px,58vh)}
 
 /* ═══════════════════════════════════════════════════════════
    OTHER WAYS
@@ -217,7 +217,7 @@ footer .copyright{font-family:var(--mono);font-size:11px;color:var(--muted);lett
   .hero-copy{order:-1}
   .device{max-width:560px;margin:0 auto;width:100%}
   .setup-visual{order:-1}
-  .phone-frame img{width:min(260px,54vw)}
+  .phone-frame img{max-width:min(260px,54vw);max-height:52vh}
 }
 @media(max-width:640px){
   nav{flex-wrap:wrap;row-gap:10px}   /* two-row nav on phones — links stay reachable */
